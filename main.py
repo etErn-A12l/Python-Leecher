@@ -11,15 +11,9 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
 
 
-
-
-
 # =================================================================
 #    G Drive Functions
 # =================================================================
-
-
-
 
 
 # extract the file ID or folder ID from the link
@@ -32,7 +26,6 @@ def __getIdFromUrl(link: str):
         return res.group(3)
     parsed = urlparse(link)
     return parse_qs(parsed.query)["id"][0]
-
 
 
 def __getFilesByFolderId(folder_id):
@@ -60,14 +53,12 @@ def __getFilesByFolderId(folder_id):
     return files
 
 
-
 def __getFileMetadata(file_id):
     return (
         service.files()
         .get(fileId=file_id, supportsAllDrives=True, fields="name, id, mimeType, size")
         .execute()
     )
-
 
 
 def __download_file(file_id, path):
@@ -96,7 +87,7 @@ def __download_file(file_id, path):
             done = False
             while done is False:
                 status, done = file_downloader.next_chunk()
-                print(f"\rDownload progress: {int(status.progress() * 100)}%")
+                # print(f"\rDownload progress: {int(status.progress() * 100)}%")
             file_contents.seek(0)
 
             # Save the downloaded file or folder to disk using its original name (if available).
@@ -104,9 +95,8 @@ def __download_file(file_id, path):
             file_name = os.path.join(path, file_name)
             with open(file_name, "wb") as handle:
                 handle.write(file_contents.getbuffer())
-            print(
-                f'\nThe file "{file_name}" has been successfully downloaded!'
-            )
+            print(f'\nThe file "{file_name}" downloaded!')
+
 
 # Usage example
 # __download_file('1XQyVFHC44zso-HM2-EyLm8YeusxcqNOX', '/content/Downloads')
@@ -115,37 +105,32 @@ def __download_file(file_id, path):
 def __download_folder(folder_id, path):
 
     folder_meta = __getFileMetadata(folder_id)
-    folder_name = folder_meta['name']
+    folder_name = folder_meta["name"]
     if not ospath.exists(f"{path}/{folder_name}"):
         makedirs(f"{path}/{folder_name}")
     path += f"/{folder_name}"
     result = __getFilesByFolderId(folder_id)
     if len(result) == 0:
-            return
-    result = sorted(result, key=lambda k: k['name'])
+        return
+    result = sorted(result, key=lambda k: k["name"])
     for item in result:
-        file_id = item['id']
-        shortcut_details = item.get('shortcutDetails')
+        file_id = item["id"]
+        shortcut_details = item.get("shortcutDetails")
         if shortcut_details is not None:
-            file_id = shortcut_details['targetId']
-            mime_type = shortcut_details['targetMimeType']
+            file_id = shortcut_details["targetId"]
+            mime_type = shortcut_details["targetMimeType"]
         else:
-            mime_type = item.get('mimeType')
+            mime_type = item.get("mimeType")
         if mime_type == "application/vnd.google-apps.folder":
             __download_folder(file_id, path)
         else:
             __download_file(file_id, path)
 
 
-
-
-
-
-
-
 # =================================================================
 #    Telegram Upload Functions
 # =================================================================
+
 
 def get_file_type(file_path):
     name, extension = os.path.splitext(file_path)
@@ -186,7 +171,7 @@ def create_zip(folder_path):
 
 
 def size_checker(file_path):
-    
+
     max_size = 2097152000  # 2 GB
     file_size = os.stat(file_path).st_size
 
@@ -200,8 +185,6 @@ def size_checker(file_path):
         return True
     else:
         return False
-
-        
 
 
 def split_zipFile(file_path, max_size):
@@ -274,15 +257,11 @@ async def upload_file(file_path, type, file_name):
                 caption=file_name,
             )
 
-            print(sent)
+        print(f"\n{file_name} Sent !")
+        print(f"LOG: {sent}")
 
     except Exception as e:
         print(e)
-
-
-
-
-
 
 
 # ****************************************************************
@@ -326,7 +305,7 @@ file_id = __getIdFromUrl(link)
 
 meta = __getFileMetadata(file_id)
 
-d_name = meta['name']
+d_name = meta["name"]
 
 d_fol_path = f"{d_path}/{d_name}"
 
@@ -346,17 +325,24 @@ leech = size_checker(z_file_path)
 
 if leech: # File was splitted
 
-    os.remove(z_file_path) # Delete original Big Zip file
+    if ospath.exists(z_file_path):
+      os.remove(z_file_path) # Delete original Big Zip file
+    print('Big Zip File Deleted !')
+    print('\n\n Now uploading multiple splitted zip files.............')
 
     dir_list = os.listdir(d_fol_path)
 
     for dir_path in dir_list:
 
-        file_type = get_file_type(dir_path)
-        file_name = os.path.basename(dir_path)
-        await upload_file(dir_path,file_type,file_name)
+        short_path = os.path.join(d_fol_path,dir_path)
+        file_type = get_file_type(short_path)
+        file_name = os.path.basename(short_path)
+        # print(dir_path)
+        await upload_file(short_path,file_type,file_name)
 
 else:
+
+    print('\nNow uploading the zip file..........................')
 
     file_type = get_file_type(z_file_path)
     file_name = os.path.basename(z_file_path)
